@@ -1,0 +1,65 @@
+{
+  "name": "azure-iot-bridge",
+  "display_name": "Azure IoT bridge",
+  "version": "0.1.0",
+  "description": "Connect your devices to an Azure IoT hub",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc -p ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tim-hellhake/azure-iot-bridge.git"
+  },
+  "author": "Tim Hellhake",
+  "license": "MPL-2.0",
+  "bugs": {
+    "url": "https://github.com/tim-hellhake/azure-iot-bridge/issues"
+  },
+  "homepage": "https://github.com/tim-hellhake/azure-iot-bridge#readme",
+  "files": [
+    "LICENSE",
+    "SHA256SUMS",
+    "lib/index.js",
+    "lib/azure-iot-bridge.js"
+  ],
+  "moziot": {
+    "api": {
+      "min": 2,
+      "max": 2
+    },
+    "plugin": true,
+    "exec": "{nodeLoader} {path}",
+    "schema": {
+      "type": "object",
+      "required": [
+        "accessToken",
+        "hubConnectionString"
+      ],
+      "properties": {
+        "accessToken": {
+          "type": "string",
+          "title": "Access token for the gateway"
+        },
+        "hubConnectionString": {
+          "type": "string",
+          "title": "The connection string for the hub"
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "webthings-client": "0.0.2",
+    "azure-iothub": "^1.9.9",
+    "azure-iot-device": "^1.9.9",
+    "azure-iot-device-amqp": "^1.9.9",
+    "uuid": "^3.3.2",
+    "@types/uuid": "^3.4.5"
+  },
+  "devDependencies": {
+    "typescript": "^3.5.2",
+    "@types/node": "^12.0.10"
+  }
+}
