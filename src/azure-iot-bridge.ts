@@ -10,6 +10,7 @@ import { Registry, ConnectionString } from 'azure-iothub';
 import { Client } from 'azure-iot-device';
 import { Amqp } from 'azure-iot-device-amqp';
 import { v4 } from 'uuid';
+import { client as WebSocketClient } from 'websocket';
 
 interface Config {
     devices: Devices
@@ -21,6 +22,11 @@ interface Devices {
 
 interface DeviceConfig {
     primaryKey: string
+}
+
+interface ThingEvent {
+    messageType: string,
+    data: {}
 }
 
 class IotHub extends Device {
@@ -89,6 +95,36 @@ class IotHub extends Device {
                 }
 
                 await twin.properties.reported.update(patch);
+
+                const thingUrl = `ws://localhost:8080${device.href}`;
+                const webSocketClient = new WebSocketClient();
+
+                webSocketClient.on('connectFailed', function (error) {
+                    console.error(`Could not connect to ${thingUrl}: ${error}`)
+                });
+
+                webSocketClient.on('connect', function (connection) {
+                    console.log(`Connected to ${thingUrl}`);
+
+                    connection.on('error', function (error) {
+                        console.log(`Connection to ${thingUrl} failed: ${error}`);
+                    });
+                    connection.on('close', function () {
+                        console.log(`Connection to ${thingUrl} closed`);
+                    });
+                    connection.on('message', function (message) {
+                        if (message.type === 'utf8' && message.utf8Data) {
+                            const thingEvent = <ThingEvent>JSON.parse(message.utf8Data);
+
+                            if (thingEvent.messageType === 'propertyStatus') {
+                                twin.properties.reported.update(thingEvent.data);
+                                console.log(`Update ${JSON.stringify(thingEvent.data)} in ${deviceId}`);
+                            }
+                        }
+                    });
+                });
+
+                webSocketClient.connect(`${thingUrl}?jwt=${accessToken}`);
             }
         })();
     }
