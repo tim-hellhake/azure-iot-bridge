@@ -51,12 +51,12 @@
     }
   },
   "dependencies": {
-    "webthings-client": "0.0.2",
-    "azure-iothub": "^1.9.9",
+    "@types/uuid": "^3.4.5",
     "azure-iot-device": "^1.9.9",
     "azure-iot-device-amqp": "^1.9.9",
+    "azure-iothub": "^1.9.9",
     "uuid": "^3.3.2",
-    "@types/uuid": "^3.4.5"
+    "webthings-client": "0.0.2"
   },
   "devDependencies": {
     "typescript": "^3.5.2",
