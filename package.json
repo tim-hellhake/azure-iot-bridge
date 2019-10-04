@@ -23,7 +23,8 @@
     "LICENSE",
     "SHA256SUMS",
     "lib/index.js",
-    "lib/azure-iot-bridge.js"
+    "lib/azure-iot-bridge.js",
+    "manifest.json"
   ],
   "moziot": {
     "api": {
