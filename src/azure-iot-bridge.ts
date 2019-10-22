@@ -70,7 +70,17 @@ class IotHub extends Device {
                     await this.savePrimaryKey(deviceId, accessKey);
                 }
 
-                const twin = await this.getTwin(deviceId, accessKey);
+                let twin;
+
+                try {
+                    twin = await this.getTwin(deviceId, accessKey);
+                } catch (error) {
+                    console.log(`Could not get twin: ${error}`);
+                    console.log(`Attempting to recreate device ${deviceId}`);
+                    accessKey = await this.createDevice(deviceId);
+                    await this.savePrimaryKey(deviceId, accessKey);
+                    twin = await this.getTwin(deviceId, accessKey);
+                }
 
                 await this.updateTwinFromDevice(deviceId, device, webThingsClient, twin);
                 this.connect(deviceId, device, twin);
@@ -126,6 +136,7 @@ class IotHub extends Device {
         const client = Client.fromConnectionString(deviceConnectionString, Amqp);
 
         await client.open();
+        console.log(`Opened connection to device ${deviceId}`);
         return client.getTwin();
     }
 
