@@ -5,9 +5,9 @@
  */
 
 import { Database, Adapter, Device, } from 'gateway-addon';
-import { WebThingsClient } from 'webthings-client';
+import { WebThingsClient, Device as DeviceInfo } from 'webthings-client';
 import { Registry, ConnectionString } from 'azure-iothub';
-import { Client } from 'azure-iot-device';
+import { Client, Twin } from 'azure-iot-device';
 import { Amqp } from 'azure-iot-device-amqp';
 import { v4 } from 'uuid';
 import { client as WebSocketClient } from 'websocket';
@@ -31,8 +31,10 @@ interface ThingEvent {
 
 class IotHub extends Device {
     private database: Database;
+    private registry: Registry;
+    private hubHostName: string;
 
-    constructor(adapter: any, manifest: any) {
+    constructor(adapter: any, private manifest: any) {
         super(adapter, manifest.name);
         this['@context'] = 'https://iot.mozilla.org/schemas/';
         this.name = manifest.display_name;
@@ -45,9 +47,14 @@ class IotHub extends Device {
         } = manifest.moziot.config;
 
         const webThingsClient = new WebThingsClient("localhost", 8080, accessToken);
-        const registry = Registry.fromConnectionString(hubConnectionString);
+        this.registry = Registry.fromConnectionString(hubConnectionString);
         const hubString = ConnectionString.parse(hubConnectionString);
-        const hubHostName = hubString.HostName;
+
+        if (!hubString.HostName) {
+            throw `Invalid hub connection string, could not extract hostname`;
+        }
+
+        this.hubHostName = hubString.HostName;
 
         (async () => {
             const devices = await webThingsClient.getDevices();
@@ -59,77 +66,20 @@ class IotHub extends Device {
                 let accessKey = await this.loadPrimaryKey(deviceId);
 
                 if (!accessKey) {
-                    const primaryKey = new Buffer(v4()).toString('base64');
-                    const secondaryKey = new Buffer(v4()).toString('base64');
-
-                    console.log(`Creating device ${deviceId}`);
-
-                    await registry.addDevices([{
-                        deviceId,
-                        status: 'disabled',
-                        authentication: {
-                            symmetricKey: {
-                                primaryKey,
-                                secondaryKey
-                            }
-                        }
-                    }]);
-
-                    await this.savePrimaryKey(deviceId, primaryKey);
-
-                    accessKey = primaryKey;
+                    accessKey = await this.createDevice(deviceId);
+                    await this.savePrimaryKey(deviceId, accessKey);
                 }
 
-                const deviceConnectionString = `HostName=${hubHostName};DeviceId=${deviceId};SharedAccessKey=${accessKey}`;
-                const client = Client.fromConnectionString(deviceConnectionString, Amqp);
+                const twin = await this.getTwin(deviceId, accessKey);
 
-                await client.open();
-                const twin = await client.getTwin();
-
-                const patch: { [key: string]: string } = {};
-
-                for (const propertyName in device.properties) {
-                    const property = device.properties[propertyName];
-                    const value = await webThingsClient.getProperty(property, propertyName);
-                    patch[propertyName] = value;
-                }
-
-                await twin.properties.reported.update(patch);
-
-                const thingUrl = `ws://localhost:8080${device.href}`;
-                const webSocketClient = new WebSocketClient();
-
-                webSocketClient.on('connectFailed', function (error) {
-                    console.error(`Could not connect to ${thingUrl}: ${error}`)
-                });
-
-                webSocketClient.on('connect', function (connection) {
-                    console.log(`Connected to ${thingUrl}`);
-
-                    connection.on('error', function (error) {
-                        console.log(`Connection to ${thingUrl} failed: ${error}`);
-                    });
-                    connection.on('close', function () {
-                        console.log(`Connection to ${thingUrl} closed`);
-                    });
-                    connection.on('message', function (message) {
-                        if (message.type === 'utf8' && message.utf8Data) {
-                            const thingEvent = <ThingEvent>JSON.parse(message.utf8Data);
-
-                            if (thingEvent.messageType === 'propertyStatus') {
-                                twin.properties.reported.update(thingEvent.data);
-                                console.log(`Update ${JSON.stringify(thingEvent.data)} in ${deviceId}`);
-                            }
-                        }
-                    });
-                });
-
-                webSocketClient.connect(`${thingUrl}?jwt=${accessToken}`);
+                await this.updateTwinFromDevice(deviceId, device, webThingsClient, twin);
+                this.connect(deviceId, device, twin);
             }
         })();
     }
 
     private async loadPrimaryKey(deviceId: string): Promise<string | undefined> {
+        console.log(`Loading primary key for ${deviceId}`);
         await this.database.open();
         const config = <Config>await this.database.loadConfig();
 
@@ -140,7 +90,27 @@ class IotHub extends Device {
         return undefined;
     }
 
+    private async createDevice(deviceId: string): Promise<string> {
+        console.log(`Creating device for ${deviceId}`);
+        const primaryKey = new Buffer(v4()).toString('base64');
+        const secondaryKey = new Buffer(v4()).toString('base64');
+
+        await this.registry.addDevices([{
+            deviceId,
+            status: 'disabled',
+            authentication: {
+                symmetricKey: {
+                    primaryKey,
+                    secondaryKey
+                }
+            }
+        }]);
+
+        return primaryKey;
+    }
+
     private async savePrimaryKey(deviceId: string, primaryKey: string) {
+        console.log(`Saving primary key for ${deviceId}`);
         await this.database.open();
         const config = <Config>await this.database.loadConfig();
         config.devices = config.devices || {};
@@ -148,6 +118,77 @@ class IotHub extends Device {
             primaryKey
         };
         await this.database.saveConfig(config);
+    }
+
+    private async getTwin(deviceId: string, accessKey: string): Promise<Twin> {
+        console.log(`Getting twin for ${deviceId}`);
+        const deviceConnectionString = `HostName=${this.hubHostName};DeviceId=${deviceId};SharedAccessKey=${accessKey}`;
+        const client = Client.fromConnectionString(deviceConnectionString, Amqp);
+
+        await client.open();
+        return client.getTwin();
+    }
+
+    private async updateTwinFromDevice(deviceId: string, device: DeviceInfo, webThingsClient: WebThingsClient, twin: Twin) {
+        console.log(`Update twin for ${deviceId}`);
+        const patch: { [key: string]: string } = {};
+
+        for (const propertyName in device.properties) {
+            const property = device.properties[propertyName];
+            const value = await webThingsClient.getProperty(property, propertyName);
+            patch[propertyName] = value;
+        }
+
+        twin.properties.reported.update(patch, (error: any) => {
+            if (error) {
+                console.log(`Could not update twin for ${deviceId}: ${error}`);
+            } else {
+                console.log(`Updated twin for ${deviceId}`);
+            }
+        });
+    }
+
+    private connect(deviceId: string, device: DeviceInfo, twin: Twin) {
+        console.log(`Connecting to websocket of ${deviceId}`);
+        const {
+            accessToken
+        } = this.manifest.moziot.config;
+
+        const thingUrl = `ws://localhost:8080${device.href}`;
+        const webSocketClient = new WebSocketClient();
+
+        webSocketClient.on('connectFailed', function (error) {
+            console.error(`Could not connect to ${thingUrl}: ${error}`)
+        });
+
+        webSocketClient.on('connect', function (connection) {
+            console.log(`Connected to ${thingUrl}`);
+
+            connection.on('error', function (error) {
+                console.log(`Connection to ${thingUrl} failed: ${error}`);
+            });
+            connection.on('close', function () {
+                console.log(`Connection to ${thingUrl} closed`);
+            });
+            connection.on('message', function (message) {
+                if (message.type === 'utf8' && message.utf8Data) {
+                    const thingEvent = <ThingEvent>JSON.parse(message.utf8Data);
+
+                    if (thingEvent.messageType === 'propertyStatus') {
+                        console.log(`Update ${JSON.stringify(thingEvent.data)} in ${deviceId}`);
+                        twin.properties.reported.update(thingEvent.data, (error: any) => {
+                            if (error) {
+                                console.log(`Could not update twin for ${deviceId}: ${error}`);
+                            } else {
+                                console.log(`Updated twin for ${deviceId}`);
+                            }
+                        });
+                    }
+                }
+            });
+        });
+
+        webSocketClient.connect(`${thingUrl}?jwt=${accessToken}`);
     }
 }
 
