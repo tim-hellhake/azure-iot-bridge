@@ -1,38 +1,38 @@
 {
-  "author": "Tim Hellhake",
+  "manifest_version": 1,
+  "id": "azure-iot-bridge",
+  "name": "Azure IoT bridge",
+  "short_name": "Azure IoT br",
+  "version": "0.1.3",
   "description": "Connect your devices to an Azure IoT hub",
+  "homepage_url": "https://github.com/tim-hellhake/azure-iot-bridge#readme",
+  "license": "MPL-2.0",
+  "author": "Tim Hellhake",
   "gateway_specific_settings": {
     "webthings": {
       "exec": "{nodeLoader} {path}",
-      "primary_type": "adapter",
+      "strict_min_version": "0.10.0",
       "strict_max_version": "*",
-      "strict_min_version": "0.10.0"
+      "primary_type": "adapter"
     }
   },
-  "homepage_url": "https://github.com/tim-hellhake/azure-iot-bridge#readme",
-  "id": "azure-iot-bridge",
-  "license": "MPL-2.0",
-  "manifest_version": 1,
-  "name": "Azure IoT bridge",
   "options": {
     "schema": {
-      "properties": {
-        "accessToken": {
-          "title": "Access token for the gateway",
-          "type": "string"
-        },
-        "hubConnectionString": {
-          "title": "The connection string for the hub",
-          "type": "string"
-        }
-      },
+      "type": "object",
       "required": [
         "accessToken",
         "hubConnectionString"
       ],
-      "type": "object"
+      "properties": {
+        "accessToken": {
+          "type": "string",
+          "title": "Access token for the gateway"
+        },
+        "hubConnectionString": {
+          "type": "string",
+          "title": "The connection string for the hub"
+        }
+      }
     }
-  },
-  "short_name": "Azure IoT",
-  "version": "0.1.3"
+  }
 }
