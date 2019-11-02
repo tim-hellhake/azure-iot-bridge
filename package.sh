@@ -1,5 +1,6 @@
 #!/bin/bash
 
+rm -rf node_modules
 npm install --production
 
 shasum --algorithm 256 package.json manifest.json lib/*.js LICENSE README.md > SHA256SUMS
