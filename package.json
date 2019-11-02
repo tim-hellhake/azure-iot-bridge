@@ -52,7 +52,7 @@
     }
   },
   "dependencies": {
-    "@types/uuid": "^3.4.5",
+    "@types/uuid": "^3.4.6",
     "@types/websocket": "1.0.0",
     "azure-iot-device": "^1.12.0",
     "azure-iot-device-amqp": "^1.11.0",
@@ -63,6 +63,6 @@
   },
   "devDependencies": {
     "typescript": "^3.6.4",
-    "@types/node": "^12.12.3"
+    "@types/node": "^12.12.5"
   }
 }
