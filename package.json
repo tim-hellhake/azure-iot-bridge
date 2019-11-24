@@ -59,10 +59,10 @@
     "azure-iothub": "^1.11.0",
     "uuid": "^3.3.3",
     "websocket": "^1.0.30",
-    "webthings-client": "1.0.0"
+    "webthings-client": "1.1.0"
   },
   "devDependencies": {
-    "typescript": "^3.6.4",
-    "@types/node": "^12.12.5"
+    "typescript": "^3.7.2",
+    "@types/node": "^12.12.12"
   }
 }
