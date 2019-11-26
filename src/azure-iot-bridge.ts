@@ -46,7 +46,6 @@ class IotHub extends Device {
             hubConnectionString
         } = manifest.moziot.config;
 
-        const webThingsClient = new WebThingsClient("localhost", 8080, accessToken);
         this.registry = Registry.fromConnectionString(hubConnectionString);
         const hubString = ConnectionString.parse(hubConnectionString);
 
@@ -57,6 +56,7 @@ class IotHub extends Device {
         this.hubHostName = hubString.HostName;
 
         (async () => {
+            const webThingsClient = await WebThingsClient.local(accessToken);
             const devices = await webThingsClient.getDevices();
 
             for (const device of devices) {
