@@ -60,30 +60,34 @@ class IotHub extends Device {
             const devices = await webThingsClient.getDevices();
 
             for (const device of devices) {
-                const parts = device.href.split('/');
-                const deviceId = parts[parts.length - 1];
-
-                let accessKey = await this.loadPrimaryKey(deviceId);
-
-                if (!accessKey) {
-                    accessKey = await this.createDevice(deviceId);
-                    await this.savePrimaryKey(deviceId, accessKey);
-                }
-
-                let twin;
-
                 try {
-                    twin = await this.getTwin(deviceId, accessKey);
-                } catch (error) {
-                    console.log(`Could not get twin: ${error}`);
-                    console.log(`Attempting to recreate device ${deviceId}`);
-                    accessKey = await this.createDevice(deviceId);
-                    await this.savePrimaryKey(deviceId, accessKey);
-                    twin = await this.getTwin(deviceId, accessKey);
-                }
+                    const parts = device.href.split('/');
+                    const deviceId = parts[parts.length - 1];
 
-                await this.updateTwinFromDevice(deviceId, device, webThingsClient, twin);
-                this.connect(deviceId, device, twin);
+                    let accessKey = await this.loadPrimaryKey(deviceId);
+
+                    if (!accessKey) {
+                        accessKey = await this.createDevice(deviceId);
+                        await this.savePrimaryKey(deviceId, accessKey);
+                    }
+
+                    let twin;
+
+                    try {
+                        twin = await this.getTwin(deviceId, accessKey);
+                    } catch (error) {
+                        console.log(`Could not get twin: ${error}`);
+                        console.log(`Attempting to recreate device ${deviceId}`);
+                        accessKey = await this.createDevice(deviceId);
+                        await this.savePrimaryKey(deviceId, accessKey);
+                        twin = await this.getTwin(deviceId, accessKey);
+                    }
+
+                    await this.updateTwinFromDevice(deviceId, device, webThingsClient, twin);
+                    this.connect(deviceId, device, twin);
+                } catch (e) {
+                    console.log(`Could not process device ${device.title} ${e}`);
+                }
             }
         })();
     }
