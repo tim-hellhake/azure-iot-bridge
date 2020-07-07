@@ -47,13 +47,15 @@ class IotHub extends Device {
         } = manifest.moziot.config;
 
         this.registry = Registry.fromConnectionString(hubConnectionString);
-        const hubString = ConnectionString.parse(hubConnectionString);
+        const {
+            HostName
+        } = ConnectionString.parse(hubConnectionString);
 
-        if (!hubString.HostName) {
+        if (!HostName) {
             throw `Invalid hub connection string, could not extract hostname`;
         }
 
-        this.hubHostName = hubString.HostName;
+        this.hubHostName = HostName;
 
         (async () => {
             const webThingsClient = await WebThingsClient.local(accessToken);
