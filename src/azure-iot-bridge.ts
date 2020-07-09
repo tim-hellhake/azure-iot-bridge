@@ -213,7 +213,6 @@ export class AzureIotBridge extends Adapter {
     constructor(addonManager: any, manifest: any) {
         super(addonManager, AzureIotBridge.name, manifest.name);
         addonManager.addAdapter(this);
-        const iotHub = new IotHub(this, manifest);
-        this.handleDeviceAdded(iotHub);
+        new IotHub(this, manifest);
     }
 }
