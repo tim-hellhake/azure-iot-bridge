@@ -1,0 +1,53 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - '*'
+
+jobs:
+  build:
+
+    strategy:
+      matrix:
+        platform: [
+          'linux-arm',
+          'linux-arm64',
+          'linux-x64',
+          'darwin-x64',
+        ]
+        pair: [
+          'node:8',
+          'node:10',
+          'node:12'
+        ]
+        include:
+          - platform: 'linux-arm'
+            host-os: 'ubuntu-latest'
+          - platform: 'linux-arm64'
+            host-os: 'ubuntu-latest'
+          - platform: 'linux-x64'
+            host-os: 'ubuntu-latest'
+          - platform: 'darwin-x64'
+            host-os: 'macos-latest'
+          - pair: 'node:8'
+            language: 'node'
+            version: '8'
+          - pair: 'node:10'
+            language: 'node'
+            version: '10'
+          - pair: 'node:12'
+            language: 'node'
+            version: '12'
+
+    runs-on: ${{ matrix.host-os }}
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v1
+      with:
+        node-version: ${{ matrix.node-version }}
+    - name: Build adapter
+      run: |
+        ./build.sh "${{ matrix.platform }}" "${{ matrix.language }}" "${{ matrix.version }}"
