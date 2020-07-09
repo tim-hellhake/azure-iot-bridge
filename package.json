@@ -52,17 +52,17 @@
     }
   },
   "dependencies": {
-    "azure-iot-device": "^1.12.0",
-    "azure-iot-device-amqp": "^1.11.0",
-    "azure-iothub": "^1.11.0",
-    "uuid": "^3.3.3",
-    "websocket": "^1.0.30",
+    "azure-iot-device": "^1.17.0",
+    "azure-iot-device-amqp": "^1.13.0",
+    "azure-iothub": "^1.12.4",
+    "uuid": "^8.2.0",
+    "websocket": "^1.0.31",
     "webthings-client": "1.1.0"
   },
   "devDependencies": {
-    "@types/node": "^12.12.12",
-    "@types/uuid": "^3.4.6",
-    "@types/websocket": "^1.0.0",
-    "typescript": "^3.7.2"
+    "@types/node": "^14.0.20",
+    "@types/uuid": "^8.0.0",
+    "@types/websocket": "^1.0.1",
+    "typescript": "^3.9.6"
   }
 }
