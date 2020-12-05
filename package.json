@@ -26,31 +26,6 @@
     "lib/azure-iot-bridge.js",
     "manifest.json"
   ],
-  "moziot": {
-    "api": {
-      "min": 2,
-      "max": 2
-    },
-    "plugin": true,
-    "exec": "{nodeLoader} {path}",
-    "schema": {
-      "type": "object",
-      "required": [
-        "accessToken",
-        "hubConnectionString"
-      ],
-      "properties": {
-        "accessToken": {
-          "type": "string",
-          "title": "Access token for the gateway"
-        },
-        "hubConnectionString": {
-          "type": "string",
-          "title": "The connection string for the hub"
-        }
-      }
-    }
-  },
   "dependencies": {
     "azure-iot-device": "^1.17.0",
     "azure-iot-device-amqp": "^1.13.0",
