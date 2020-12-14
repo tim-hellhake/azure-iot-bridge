@@ -7,24 +7,43 @@
 declare module 'gateway-addon' {
     class Device {
         protected '@context': string;
+
         protected name: string;
+
         protected description: string;
 
-        constructor(adapter: Adapter, id: string);
+        constructor(_adapter: Adapter, _id: string);
 
-        public addAction(name: string, metadata: any): void;
+        public addAction(
+          _name: string, _metadata: Record<string, unknown>): void;
     }
 
     class Adapter {
-        constructor(addonManager: any, id: string, packageName: string);
+      constructor(
+        _addonManager: AddonManager, _id: string, _packageName: string);
 
-        public handleDeviceAdded(device: Device): void;
+      public handleDeviceAdded(_device: Device): void;
     }
 
     class Database {
-        constructor(packageName: string, path?: string);
-        public open(): Promise<void>;
-        public loadConfig(): Promise<{}>;
-        public saveConfig(config: {}): Promise<void>;
+      constructor(_packageName: string, _path?: string);
+
+      public open(): Promise<void>;
+
+      public loadConfig(): Promise<Record<string, unknown>>;
+
+      public saveConfig(_config: Record<string, unknown>): Promise<void>;
+    }
+
+    class AddonManager {
+      addAdapter(_adapter: Adapter): void;
+    }
+
+    interface Manifest {
+      name: string,
+      display_name: string,
+      moziot: {
+        config: Record<string, string>
+      }
     }
 }

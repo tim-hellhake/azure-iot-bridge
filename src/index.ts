@@ -4,6 +4,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.*
  */
 
-import { AzureIotBridge } from './azure-iot-bridge';
+import {AddonManager, Manifest} from 'gateway-addon';
+import {AzureIotBridge} from './azure-iot-bridge';
 
-export = (addonManager: any, manifest: any) => new AzureIotBridge(addonManager, manifest);
+export = function(addonManager: AddonManager, manifest: Manifest): void {
+  new AzureIotBridge(addonManager, manifest);
+};
