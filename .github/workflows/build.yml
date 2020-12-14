@@ -17,7 +17,6 @@ jobs:
           'darwin-x64',
         ]
         pair: [
-          'node:8',
           'node:10',
           'node:12'
         ]
@@ -30,9 +29,6 @@ jobs:
             host-os: 'ubuntu-latest'
           - platform: 'darwin-x64'
             host-os: 'macos-latest'
-          - pair: 'node:8'
-            language: 'node'
-            version: '8'
           - pair: 'node:10'
             language: 'node'
             version: '10'
