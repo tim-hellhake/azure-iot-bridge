@@ -5,12 +5,11 @@
  */
 
 import {Database, Adapter, Device, AddonManager, Manifest} from 'gateway-addon';
-import {WebThingsClient, Device as DeviceInfo} from 'webthings-client';
+import {WebThingsClient} from 'webthings-client';
 import {Registry, ConnectionString} from 'azure-iothub';
 import {Client, Twin} from 'azure-iot-device';
 import {Amqp} from 'azure-iot-device-amqp';
 import {v4} from 'uuid';
-import {client as WebSocketClient} from 'websocket';
 
 interface Config {
     devices: Devices
@@ -24,11 +23,6 @@ interface DeviceConfig {
     primaryKey: string
 }
 
-interface ThingEvent {
-    messageType: string,
-    data: Record<string, unknown>
-}
-
 class IotHub extends Device {
     private database: Database;
 
@@ -36,7 +30,11 @@ class IotHub extends Device {
 
     private hubHostName: string;
 
-    constructor(adapter: Adapter, private manifest: Manifest) {
+    private twinByDeviceId: Record<string, Twin> = {};
+
+    private batchByDeviceId: Record<string, Record<string, unknown>> = {};
+
+    constructor(adapter: Adapter, manifest: Manifest) {
       super(adapter, manifest.name);
       this['@context'] = 'https://iot.mozilla.org/schemas/';
       this.name = manifest.display_name;
@@ -61,40 +59,71 @@ class IotHub extends Device {
 
       (async () => {
         const webThingsClient = await WebThingsClient.local(accessToken);
-        const devices = await webThingsClient.getDevices();
+        await webThingsClient.connect();
+        webThingsClient.on('propertyChanged', async (
+          deviceId: string, key: string, value: unknown) => {
+          console.log(`Updating ${key}=${value} in ${deviceId}`);
 
-        for (const device of devices) {
-          try {
-            const parts = device.href.split('/');
-            const deviceId = parts[parts.length - 1];
+          let batch = this.batchByDeviceId[deviceId];
 
-            let accessKey = await this.loadPrimaryKey(deviceId);
+          if (!batch) {
+            console.log(`Creating batch for ${deviceId}`);
+            batch = {[key]: value};
+            this.batchByDeviceId[deviceId] = batch;
 
-            if (!accessKey) {
-              accessKey = await this.createDevice(deviceId);
-              await this.savePrimaryKey(deviceId, accessKey);
-            }
+            const twin = await this.getOrCreateTwin(deviceId);
 
-            let twin;
+            delete this.batchByDeviceId[deviceId];
 
-            try {
-              twin = await this.getTwin(deviceId, accessKey);
-            } catch (error) {
-              console.log(`Could not get twin: ${error}`);
-              console.log(`Attempting to recreate device ${deviceId}`);
-              accessKey = await this.createDevice(deviceId);
-              await this.savePrimaryKey(deviceId, accessKey);
-              twin = await this.getTwin(deviceId, accessKey);
-            }
+            console.log(`Applying ${JSON.stringify(batch)} to ${deviceId}`);
 
-            await this.updateTwinFromDevice(
-              deviceId, device, webThingsClient, twin);
-            this.connect(deviceId, device, twin);
-          } catch (e) {
-            console.log(`Could not process device ${device.title} ${e}`);
+            twin.properties.reported.update(batch, (error: string) => {
+              if (error) {
+                console.log(
+                  `Could not update twin of ${deviceId}: ${error}`);
+              } else {
+                console.log(`Updated twin of ${deviceId}`);
+              }
+            });
+          } else {
+            console.log(`Adding ${key}=${value} in ${deviceId} to batch`);
+            batch[key] = value;
           }
-        }
+        });
       })();
+    }
+
+    private async getOrCreateTwin(deviceId: string): Promise<Twin> {
+      let twin = this.twinByDeviceId[deviceId];
+
+      if (!twin) {
+        let accessKey = await this.getOrCreateDevice(deviceId);
+
+        try {
+          twin = await this.getTwin(deviceId, accessKey);
+        } catch (error) {
+          console.log(`Could not get twin: ${error}`);
+          console.log(`Attempting to recreate twin for ${deviceId}`);
+          accessKey = await this.createDevice(deviceId);
+          await this.savePrimaryKey(deviceId, accessKey);
+          twin = await this.getTwin(deviceId, accessKey);
+        }
+
+        this.twinByDeviceId[deviceId] = twin;
+      }
+
+      return twin;
+    }
+
+    private async getOrCreateDevice(deviceId: string): Promise<string> {
+      let accessKey = await this.loadPrimaryKey(deviceId);
+
+      if (!accessKey) {
+        accessKey = await this.createDevice(deviceId);
+        await this.savePrimaryKey(deviceId, accessKey);
+      }
+
+      return accessKey;
     }
 
     private async loadPrimaryKey(deviceId: string): Promise<string | null> {
@@ -110,7 +139,7 @@ class IotHub extends Device {
     }
 
     private async createDevice(deviceId: string): Promise<string> {
-      console.log(`Creating device for ${deviceId}`);
+      console.log(`Creating twin for ${deviceId}`);
       const primaryKey = new Buffer(v4()).toString('base64');
       const secondaryKey = new Buffer(v4()).toString('base64');
 
@@ -148,72 +177,6 @@ class IotHub extends Device {
       await client.open();
       console.log(`Opened connection to device ${deviceId}`);
       return client.getTwin();
-    }
-
-    // eslint-disable-next-line max-len
-    private async updateTwinFromDevice(deviceId: string, device: DeviceInfo, webThingsClient: WebThingsClient, twin: Twin) {
-      console.log(`Update twin for ${deviceId}`);
-      const patch: { [key: string]: string } = {};
-
-      for (const propertyName in device.properties) {
-        const property = device.properties[propertyName];
-        const value = await webThingsClient.getProperty(property, propertyName);
-        patch[propertyName] = value;
-      }
-
-      twin.properties.reported.update(patch, (error: string) => {
-        if (error) {
-          console.log(`Could not update twin for ${deviceId}: ${error}`);
-        } else {
-          console.log(`Updated twin for ${deviceId}`);
-        }
-      });
-    }
-
-    private connect(deviceId: string, device: DeviceInfo, twin: Twin) {
-      console.log(`Connecting to websocket of ${deviceId}`);
-      const {
-        accessToken,
-      } = this.manifest.moziot.config;
-
-      const thingUrl = `ws://localhost:8080${device.href}`;
-      const webSocketClient = new WebSocketClient();
-
-      webSocketClient.on('connectFailed', function(error) {
-        console.error(`Could not connect to ${thingUrl}: ${error}`);
-      });
-
-      webSocketClient.on('connect', function(connection) {
-        console.log(`Connected to ${thingUrl}`);
-
-        connection.on('error', function(error) {
-          console.log(`Connection to ${thingUrl} failed: ${error}`);
-        });
-        connection.on('close', function() {
-          console.log(`Connection to ${thingUrl} closed`);
-        });
-        connection.on('message', function(message) {
-          if (message.type === 'utf8' && message.utf8Data) {
-            const thingEvent = <ThingEvent>JSON.parse(message.utf8Data);
-
-            if (thingEvent.messageType === 'propertyStatus') {
-              console.log(
-                `Update ${JSON.stringify(thingEvent.data)} in ${deviceId}`);
-              twin.properties.reported.update(
-                thingEvent.data, (error: string) => {
-                  if (error) {
-                    console.log(
-                      `Could not update twin for ${deviceId}: ${error}`);
-                  } else {
-                    console.log(`Updated twin for ${deviceId}`);
-                  }
-                });
-            }
-          }
-        });
-      });
-
-      webSocketClient.connect(`${thingUrl}?jwt=${accessToken}`);
     }
 }
 
