@@ -7,7 +7,7 @@
 import {Database, Adapter, Device, AddonManager, Manifest} from 'gateway-addon';
 import {WebThingsClient} from 'webthings-client';
 import {Registry, ConnectionString} from 'azure-iothub';
-import {Client, Twin} from 'azure-iot-device';
+import {Client, Twin, Message} from 'azure-iot-device';
 import {Amqp} from 'azure-iot-device-amqp';
 import {v4} from 'uuid';
 
@@ -32,6 +32,8 @@ class IotHub extends Device {
 
     private twinByDeviceId: Record<string, Twin> = {};
 
+    private deviceByDeviceId: Record<string, Client> = {};
+
     private batchByDeviceId: Record<string, Record<string, unknown>> = {};
 
     constructor(adapter: Adapter, manifest: Manifest) {
@@ -44,6 +46,7 @@ class IotHub extends Device {
       const {
         accessToken,
         hubConnectionString,
+        updateTwin,
       } = manifest.moziot.config;
 
       this.registry = Registry.fromConnectionString(hubConnectionString);
@@ -71,20 +74,36 @@ class IotHub extends Device {
             batch = {[key]: value};
             this.batchByDeviceId[deviceId] = batch;
 
-            const twin = await this.getOrCreateTwin(deviceId);
+            try {
+              const device = await this.getOrCreateDevice(deviceId);
+              const batchJson = JSON.stringify(batch);
+
+              try {
+                console.log(`Sending event ${batchJson} to ${deviceId}`);
+
+                const message = new Message(batchJson);
+
+                await device.sendEvent(message);
+
+                console.log(`Sent event ${batchJson} to ${deviceId}`);
+              } catch (e) {
+                console.log(`Could not send event to ${deviceId}: ${e}`);
+              }
+
+              if (updateTwin) {
+                try {
+                  console.log(`Applying ${batchJson} to twin ${deviceId}`);
+                  await this.updateTwin(deviceId, device, batch);
+                  console.log(`Updated twin of ${deviceId} with ${batchJson}`);
+                } catch (e) {
+                  console.log(`Could not update twin of ${deviceId}: ${e}`);
+                }
+              }
+            } catch (e) {
+              console.log(`Could not create deveice for ${deviceId}: ${e}`);
+            }
 
             delete this.batchByDeviceId[deviceId];
-
-            console.log(`Applying ${JSON.stringify(batch)} to ${deviceId}`);
-
-            twin.properties.reported.update(batch, (error: string) => {
-              if (error) {
-                console.log(
-                  `Could not update twin of ${deviceId}: ${error}`);
-              } else {
-                console.log(`Updated twin of ${deviceId}`);
-              }
-            });
           } else {
             console.log(`Adding ${key}=${value} in ${deviceId} to batch`);
             batch[key] = value;
@@ -93,33 +112,60 @@ class IotHub extends Device {
       })();
     }
 
-    private async getOrCreateTwin(deviceId: string): Promise<Twin> {
+    private async updateTwin(deviceId: string,
+                             device: Client,
+                             batch: Record<string, unknown>): Promise<void> {
+      const twin = await this.getOrCreateTwin(deviceId, device);
+
+      return new Promise((resolve, reject) => {
+        twin.properties.reported.update(batch, (error: string) => {
+          if (error) {
+            reject(error);
+          } else {
+            resolve();
+          }
+        });
+      });
+    }
+
+    private async getOrCreateTwin(deviceId: string, device: Client): Promise<Twin> {
       let twin = this.twinByDeviceId[deviceId];
 
       if (!twin) {
-        let accessKey = await this.getOrCreateDevice(deviceId);
-
-        try {
-          twin = await this.getTwin(deviceId, accessKey);
-        } catch (error) {
-          console.log(`Could not get twin: ${error}`);
-          console.log(`Attempting to recreate twin for ${deviceId}`);
-          accessKey = await this.createDevice(deviceId);
-          await this.savePrimaryKey(deviceId, accessKey);
-          twin = await this.getTwin(deviceId, accessKey);
-        }
-
+        twin = await device.getTwin();
         this.twinByDeviceId[deviceId] = twin;
       }
 
       return twin;
     }
 
-    private async getOrCreateDevice(deviceId: string): Promise<string> {
+    private async getOrCreateDevice(deviceId: string): Promise<Client> {
+      let device = this.deviceByDeviceId[deviceId];
+
+      if (!device) {
+        let accessKey = await this.getOrCreateDeviceKey(deviceId);
+
+        try {
+          device = await this.createDeviceClient(deviceId, accessKey);
+        } catch (error) {
+          console.log(`Could not create device: ${error}`);
+          console.log(`Attempting to recreate device for ${deviceId}`);
+          accessKey = await this.createDeviceKey(deviceId);
+          await this.savePrimaryKey(deviceId, accessKey);
+          device = await this.createDeviceClient(deviceId, accessKey);
+        }
+
+        this.deviceByDeviceId[deviceId] = device;
+      }
+
+      return device;
+    }
+
+    private async getOrCreateDeviceKey(deviceId: string): Promise<string> {
       let accessKey = await this.loadPrimaryKey(deviceId);
 
       if (!accessKey) {
-        accessKey = await this.createDevice(deviceId);
+        accessKey = await this.createDeviceKey(deviceId);
         await this.savePrimaryKey(deviceId, accessKey);
       }
 
@@ -138,8 +184,8 @@ class IotHub extends Device {
       return null;
     }
 
-    private async createDevice(deviceId: string): Promise<string> {
-      console.log(`Creating twin for ${deviceId}`);
+    private async createDeviceKey(deviceId: string): Promise<string> {
+      console.log(`Creating device for ${deviceId}`);
       const primaryKey = new Buffer(v4()).toString('base64');
       const secondaryKey = new Buffer(v4()).toString('base64');
 
@@ -168,7 +214,7 @@ class IotHub extends Device {
       await this.database.saveConfig(<Record<string, unknown>><unknown>config);
     }
 
-    private async getTwin(deviceId: string, accessKey: string): Promise<Twin> {
+    private async createDeviceClient(deviceId: string, accessKey: string): Promise<Client> {
       console.log(`Getting twin for ${deviceId}`);
       // eslint-disable-next-line max-len
       const deviceConnectionString = `HostName=${this.hubHostName};DeviceId=${deviceId};SharedAccessKey=${accessKey}`;
@@ -176,7 +222,7 @@ class IotHub extends Device {
 
       await client.open();
       console.log(`Opened connection to device ${deviceId}`);
-      return client.getTwin();
+      return client;
     }
 }
 

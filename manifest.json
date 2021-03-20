@@ -23,6 +23,9 @@
         "accessToken",
         "hubConnectionString"
       ],
+      "default": {
+        "updateTwin": false
+      },
       "properties": {
         "accessToken": {
           "type": "string",
@@ -31,6 +34,10 @@
         "hubConnectionString": {
           "type": "string",
           "title": "The connection string for the hub"
+        },
+        "updateTwin": {
+          "type": "boolean",
+          "title": "Whether the digital twin should be updated"
         }
       }
     }
