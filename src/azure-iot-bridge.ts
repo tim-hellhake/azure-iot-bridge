@@ -82,6 +82,17 @@ class IotHub extends Device {
         updateTwin,
       } = this.manifest.moziot.config;
 
+      const devices = (await this.registry.list()).responseBody;
+      const deviceDisabled: Record<string, boolean> = {};
+
+      for (const device of devices) {
+        const {
+          status,
+        } = device;
+
+        deviceDisabled[device.deviceId] = status !== 'enabled';
+      }
+
       const webThingsClient = await WebThingsClient.local(accessToken);
       await webThingsClient.connect();
 
@@ -89,6 +100,11 @@ class IotHub extends Device {
         originalDeviceId: string, key: string, value: unknown) => {
         const deviceId = sanitizeNames(originalDeviceId);
         console.log(`Updating ${key}=${value} in ${deviceId}`);
+
+        if (deviceDisabled[deviceId]) {
+          console.log(`Device ${deviceId} is not enabled, ignoring update`);
+          return;
+        }
 
         let batch = this.batchByDeviceId[deviceId];
 
