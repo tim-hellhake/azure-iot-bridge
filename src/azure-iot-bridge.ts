@@ -115,7 +115,7 @@ class IotHub extends Device {
                 }
               }
             } catch (e) {
-              console.log(`Could not create deveice for ${deviceId}: ${e}`);
+              console.log(`Could not create device for ${deviceId}: ${e}`);
             }
 
             delete this.batchByDeviceId[deviceId];
@@ -230,7 +230,7 @@ class IotHub extends Device {
     }
 
     private async createDeviceClient(deviceId: string, accessKey: string): Promise<Client> {
-      console.log(`Getting twin for ${deviceId}`);
+      console.log(`Creating device client for ${deviceId}`);
       // eslint-disable-next-line max-len
       const deviceConnectionString = `HostName=${this.hubHostName};DeviceId=${deviceId};SharedAccessKey=${accessKey}`;
       const client = Client.fromConnectionString(deviceConnectionString, Amqp);
