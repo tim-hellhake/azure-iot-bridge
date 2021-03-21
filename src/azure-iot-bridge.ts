@@ -51,19 +51,18 @@ class IotHub extends Device {
 
     private batchByDeviceId: Record<string, Record<string, unknown>> = {};
 
-    constructor(adapter: Adapter, manifest: Manifest) {
+    constructor(adapter: Adapter, private manifest: Manifest) {
       super(adapter, manifest.name);
       this['@context'] = 'https://iot.mozilla.org/schemas/';
       this.setTitle(manifest.display_name);
       this.database = new Database(manifest.name, '');
 
       const {
-        accessToken,
         hubConnectionString,
-        updateTwin,
-      } = manifest.moziot.config;
+      } = this.manifest.moziot.config;
 
       this.registry = Registry.fromConnectionString(hubConnectionString);
+
       const {
         HostName,
       } = ConnectionString.parse(hubConnectionString);
@@ -74,57 +73,65 @@ class IotHub extends Device {
 
       this.hubHostName = HostName;
 
-      (async () => {
-        const webThingsClient = await WebThingsClient.local(accessToken);
-        await webThingsClient.connect();
-        webThingsClient.on('propertyChanged', async (
-          originalDeviceId: string, key: string, value: unknown) => {
-          const deviceId = sanitizeNames(originalDeviceId);
-          console.log(`Updating ${key}=${value} in ${deviceId}`);
+      this.connectToGateway();
+    }
 
-          let batch = this.batchByDeviceId[deviceId];
+    private async connectToGateway() {
+      const {
+        accessToken,
+        updateTwin,
+      } = this.manifest.moziot.config;
 
-          if (!batch) {
-            console.log(`Creating batch for ${deviceId}`);
-            batch = {[key]: value};
-            this.batchByDeviceId[deviceId] = batch;
+      const webThingsClient = await WebThingsClient.local(accessToken);
+      await webThingsClient.connect();
+
+      webThingsClient.on('propertyChanged', async (
+        originalDeviceId: string, key: string, value: unknown) => {
+        const deviceId = sanitizeNames(originalDeviceId);
+        console.log(`Updating ${key}=${value} in ${deviceId}`);
+
+        let batch = this.batchByDeviceId[deviceId];
+
+        if (!batch) {
+          console.log(`Creating batch for ${deviceId}`);
+          batch = {[key]: value};
+          this.batchByDeviceId[deviceId] = batch;
+
+          try {
+            const device = await this.getOrCreateDevice(deviceId);
+            const batchJson = JSON.stringify(batch);
 
             try {
-              const device = await this.getOrCreateDevice(deviceId);
-              const batchJson = JSON.stringify(batch);
+              console.log(`Sending event ${batchJson} to ${deviceId}`);
 
-              try {
-                console.log(`Sending event ${batchJson} to ${deviceId}`);
+              const message = new Message(batchJson);
 
-                const message = new Message(batchJson);
+              await device.sendEvent(message);
 
-                await device.sendEvent(message);
-
-                console.log(`Sent event ${batchJson} to ${deviceId}`);
-              } catch (e) {
-                console.log(`Could not send event to ${deviceId}: ${e}`);
-              }
-
-              if (updateTwin) {
-                try {
-                  console.log(`Applying ${batchJson} to twin ${deviceId}`);
-                  await this.updateTwin(deviceId, device, batch);
-                  console.log(`Updated twin of ${deviceId} with ${batchJson}`);
-                } catch (e) {
-                  console.log(`Could not update twin of ${deviceId}: ${e}`);
-                }
-              }
+              console.log(`Sent event ${batchJson} to ${deviceId}`);
             } catch (e) {
-              console.log(`Could not create device for ${deviceId}: ${e}`);
+              console.log(`Could not send event to ${deviceId}: ${e}`);
             }
 
-            delete this.batchByDeviceId[deviceId];
-          } else {
-            console.log(`Adding ${key}=${value} in ${deviceId} to batch`);
-            batch[key] = value;
+            if (updateTwin) {
+              try {
+                console.log(`Applying ${batchJson} to twin ${deviceId}`);
+                await this.updateTwin(deviceId, device, batch);
+                console.log(`Updated twin of ${deviceId} with ${batchJson}`);
+              } catch (e) {
+                console.log(`Could not update twin of ${deviceId}: ${e}`);
+              }
+            }
+          } catch (e) {
+            console.log(`Could not create device for ${deviceId}: ${e}`);
           }
-        });
-      })();
+
+          delete this.batchByDeviceId[deviceId];
+        } else {
+          console.log(`Adding ${key}=${value} in ${deviceId} to batch`);
+          batch[key] = value;
+        }
+      });
     }
 
     private async updateTwin(deviceId: string,
