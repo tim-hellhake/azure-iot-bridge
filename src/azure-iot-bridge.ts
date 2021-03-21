@@ -206,7 +206,7 @@ class IotHub extends Device {
 
       await this.registry.addDevices([{
         deviceId,
-        status: 'disabled',
+        status: 'enabled',
         authentication: {
           symmetricKey: {
             primaryKey,
