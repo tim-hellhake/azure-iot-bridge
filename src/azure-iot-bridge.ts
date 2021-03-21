@@ -31,6 +31,13 @@ interface DeviceConfig {
     primaryKey: string
 }
 
+function sanitizeNames(s: string) {
+  return s
+    .split('')
+    .map((x) => x.replace(/[^a-zA-Z0-9-.+%_#*?!(),:=@$']/, '_'))
+    .join('');
+}
+
 class IotHub extends Device {
     private database: Database;
 
@@ -71,7 +78,8 @@ class IotHub extends Device {
         const webThingsClient = await WebThingsClient.local(accessToken);
         await webThingsClient.connect();
         webThingsClient.on('propertyChanged', async (
-          deviceId: string, key: string, value: unknown) => {
+          originalDeviceId: string, key: string, value: unknown) => {
+          const deviceId = sanitizeNames(originalDeviceId);
           console.log(`Updating ${key}=${value} in ${deviceId}`);
 
           let batch = this.batchByDeviceId[deviceId];
