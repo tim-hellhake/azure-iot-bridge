@@ -201,8 +201,8 @@ class IotHub extends Device {
 
     private async createDeviceKey(deviceId: string): Promise<string> {
       console.log(`Creating device for ${deviceId}`);
-      const primaryKey = new Buffer(v4()).toString('base64');
-      const secondaryKey = new Buffer(v4()).toString('base64');
+      const primaryKey = Buffer.from(v4()).toString('base64');
+      const secondaryKey = Buffer.from(v4()).toString('base64');
 
       await this.registry.addDevices([{
         deviceId,
