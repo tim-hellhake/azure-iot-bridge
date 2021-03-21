@@ -4,12 +4,20 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.*
  */
 
-import {Database, Adapter, Device, AddonManager, Manifest} from 'gateway-addon';
+import {Database, Adapter, Device, AddonManagerProxy} from 'gateway-addon';
 import {WebThingsClient} from 'webthings-client';
 import {Registry, ConnectionString} from 'azure-iothub';
 import {Client, Twin, Message} from 'azure-iot-device';
 import {Amqp} from 'azure-iot-device-amqp';
 import {v4} from 'uuid';
+
+export interface Manifest {
+  name: string,
+  display_name: string,
+  moziot: {
+    config: Record<string, string>
+  }
+}
 
 interface Config {
     devices: Devices
@@ -39,9 +47,8 @@ class IotHub extends Device {
     constructor(adapter: Adapter, manifest: Manifest) {
       super(adapter, manifest.name);
       this['@context'] = 'https://iot.mozilla.org/schemas/';
-      this.name = manifest.display_name;
-      this.description = manifest.display_name;
-      this.database = new Database(manifest.name);
+      this.setTitle(manifest.display_name);
+      this.database = new Database(manifest.name, '');
 
       const {
         accessToken,
@@ -227,7 +234,7 @@ class IotHub extends Device {
 }
 
 export class AzureIotBridge extends Adapter {
-  constructor(addonManager: AddonManager, manifest: Manifest) {
+  constructor(addonManager: AddonManagerProxy, manifest: Manifest) {
     super(addonManager, AzureIotBridge.name, manifest.name);
     addonManager.addAdapter(this);
     new IotHub(this, manifest);
