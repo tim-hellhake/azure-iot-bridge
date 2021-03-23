@@ -80,24 +80,26 @@ class IotHub extends Device {
       const {
         accessToken,
         updateTwin,
+        minCheckDeviceStatusInterval,
       } = this.manifest.moziot.config;
 
-      const devices = (await this.registry.list()).responseBody;
-      const deviceDisabled: Record<string, boolean> = {};
-
-      for (const device of devices) {
-        const {
-          status,
-        } = device;
-
-        deviceDisabled[device.deviceId] = status !== 'enabled';
-      }
+      let deviceDisabled: Record<string, boolean> = await this.checkDeviceStatus();
+      let lastDeviceCheck = new Date();
 
       const webThingsClient = await WebThingsClient.local(accessToken);
       await webThingsClient.connect();
 
       webThingsClient.on('propertyChanged', async (
         originalDeviceId: string, key: string, value: unknown) => {
+        const secondsSinceLastDeviceCheck =
+        (new Date().getTime() - lastDeviceCheck.getTime()) / 1000;
+
+        if (secondsSinceLastDeviceCheck > (minCheckDeviceStatusInterval || 0)) {
+          lastDeviceCheck = new Date();
+          console.log(`Time since last device update: ${secondsSinceLastDeviceCheck}s`);
+          deviceDisabled = await this.checkDeviceStatus();
+        }
+
         const deviceId = sanitizeNames(originalDeviceId);
         console.log(`Updating ${key}=${value} in ${deviceId}`);
 
@@ -148,6 +150,21 @@ class IotHub extends Device {
           batch[key] = value;
         }
       });
+    }
+
+    private async checkDeviceStatus(): Promise<Record<string, boolean>> {
+      const devices = (await this.registry.list()).responseBody;
+      const deviceDisabled: Record<string, boolean> = {};
+
+      for (const device of devices) {
+        const {
+          status,
+        } = device;
+
+        deviceDisabled[device.deviceId] = status !== 'enabled';
+      }
+
+      return deviceDisabled;
     }
 
     private async updateTwin(deviceId: string,

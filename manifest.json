@@ -24,7 +24,8 @@
         "hubConnectionString"
       ],
       "default": {
-        "updateTwin": false
+        "updateTwin": false,
+        "minCheckDeviceStatusInterval": 600
       },
       "properties": {
         "accessToken": {
@@ -38,6 +39,10 @@
         "updateTwin": {
           "type": "boolean",
           "title": "Whether the digital twin should be updated"
+        },
+        "minCheckDeviceStatusInterval": {
+          "type": "integer",
+          "title": "The minimum number of seconds between two checks wether a device is activated or not"
         }
       }
     }
