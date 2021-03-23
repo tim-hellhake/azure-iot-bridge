@@ -5,7 +5,7 @@
  */
 
 import {Database, Adapter, Device, AddonManagerProxy} from 'gateway-addon';
-import {WebThingsClient} from 'webthings-client';
+import {Property, WebThingsClient} from 'webthings-client';
 import {Registry, ConnectionString} from 'azure-iothub';
 import {Client, Twin, Message} from 'azure-iot-device';
 import {Amqp} from 'azure-iot-device-amqp';
@@ -87,69 +87,76 @@ class IotHub extends Device {
       let lastDeviceCheck = new Date();
 
       const webThingsClient = await WebThingsClient.local(accessToken);
-      await webThingsClient.connect();
+      const devices = await webThingsClient.getDevices();
 
-      webThingsClient.on('propertyChanged', async (
-        originalDeviceId: string, key: string, value: unknown) => {
-        const secondsSinceLastDeviceCheck =
-        (new Date().getTime() - lastDeviceCheck.getTime()) / 1000;
+      for (const device of devices) {
+        const originalDeviceId = device.id();
+        await device.connect();
+        // eslint-disable-next-line max-len
+        console.log(`Successfully connected to ${device.description.title} (${originalDeviceId})`);
 
-        if (secondsSinceLastDeviceCheck > (minCheckDeviceStatusInterval || 0)) {
-          lastDeviceCheck = new Date();
-          console.log(`Time since last device update: ${secondsSinceLastDeviceCheck}s`);
-          deviceDisabled = await this.checkDeviceStatus();
-        }
+        device.on('propertyChanged', async (property: Property, value: unknown) => {
+          const key = property.name;
+          const secondsSinceLastDeviceCheck =
+          (new Date().getTime() - lastDeviceCheck.getTime()) / 1000;
 
-        const deviceId = sanitizeNames(originalDeviceId);
-        console.log(`Updating ${key}=${value} in ${deviceId}`);
-
-        if (deviceDisabled[deviceId]) {
-          console.log(`Device ${deviceId} is not enabled, ignoring update`);
-          return;
-        }
-
-        let batch = this.batchByDeviceId[deviceId];
-
-        if (!batch) {
-          console.log(`Creating batch for ${deviceId}`);
-          batch = {[key]: value};
-          this.batchByDeviceId[deviceId] = batch;
-
-          try {
-            const device = await this.getOrCreateDevice(deviceId);
-            const batchJson = JSON.stringify(batch);
-
-            try {
-              console.log(`Sending event ${batchJson} to ${deviceId}`);
-
-              const message = new Message(batchJson);
-
-              await device.sendEvent(message);
-
-              console.log(`Sent event ${batchJson} to ${deviceId}`);
-            } catch (e) {
-              console.log(`Could not send event to ${deviceId}: ${e}`);
-            }
-
-            if (updateTwin) {
-              try {
-                console.log(`Applying ${batchJson} to twin ${deviceId}`);
-                await this.updateTwin(deviceId, device, batch);
-                console.log(`Updated twin of ${deviceId} with ${batchJson}`);
-              } catch (e) {
-                console.log(`Could not update twin of ${deviceId}: ${e}`);
-              }
-            }
-          } catch (e) {
-            console.log(`Could not create device for ${deviceId}: ${e}`);
+          if (secondsSinceLastDeviceCheck > (minCheckDeviceStatusInterval || 0)) {
+            lastDeviceCheck = new Date();
+            console.log(`Time since last device update: ${secondsSinceLastDeviceCheck}s`);
+            deviceDisabled = await this.checkDeviceStatus();
           }
 
-          delete this.batchByDeviceId[deviceId];
-        } else {
-          console.log(`Adding ${key}=${value} in ${deviceId} to batch`);
-          batch[key] = value;
-        }
-      });
+          const deviceId = sanitizeNames(originalDeviceId);
+          console.log(`Updating ${key}=${value} in ${deviceId}`);
+
+          if (deviceDisabled[deviceId]) {
+            console.log(`Device ${deviceId} is not enabled, ignoring update`);
+            return;
+          }
+
+          let batch = this.batchByDeviceId[deviceId];
+
+          if (!batch) {
+            console.log(`Creating batch for ${deviceId}`);
+            batch = {[key]: value};
+            this.batchByDeviceId[deviceId] = batch;
+
+            try {
+              const device = await this.getOrCreateDevice(deviceId);
+              const batchJson = JSON.stringify(batch);
+
+              try {
+                console.log(`Sending event ${batchJson} to ${deviceId}`);
+
+                const message = new Message(batchJson);
+
+                await device.sendEvent(message);
+
+                console.log(`Sent event ${batchJson} to ${deviceId}`);
+              } catch (e) {
+                console.log(`Could not send event to ${deviceId}: ${e}`);
+              }
+
+              if (updateTwin) {
+                try {
+                  console.log(`Applying ${batchJson} to twin ${deviceId}`);
+                  await this.updateTwin(deviceId, device, batch);
+                  console.log(`Updated twin of ${deviceId} with ${batchJson}`);
+                } catch (e) {
+                  console.log(`Could not update twin of ${deviceId}: ${e}`);
+                }
+              }
+            } catch (e) {
+              console.log(`Could not create device for ${deviceId}: ${e}`);
+            }
+
+            delete this.batchByDeviceId[deviceId];
+          } else {
+            console.log(`Adding ${key}=${value} in ${deviceId} to batch`);
+            batch[key] = value;
+          }
+        });
+      }
     }
 
     private async checkDeviceStatus(): Promise<Record<string, boolean>> {
