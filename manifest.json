@@ -3,7 +3,7 @@
   "id": "azure-iot-bridge",
   "name": "Azure IoT bridge",
   "short_name": "Azure IoT br",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Connect your devices to an Azure IoT hub",
   "homepage_url": "https://github.com/tim-hellhake/azure-iot-bridge#readme",
   "license": "MPL-2.0",
@@ -19,10 +19,7 @@
   "options": {
     "schema": {
       "type": "object",
-      "required": [
-        "accessToken",
-        "hubConnectionString"
-      ],
+      "required": [],
       "default": {
         "updateTwin": false,
         "minCheckDeviceStatusInterval": 600
