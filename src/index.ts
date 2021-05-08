@@ -4,18 +4,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.*
  */
 
-import {AddonManagerProxy} from 'gateway-addon';
-import {AzureIotBridge, Manifest} from './azure-iot-bridge';
+import { AddonManagerProxy } from 'gateway-addon';
+import { AzureIotBridge, Manifest } from './azure-iot-bridge';
 
-export = function(addonManager: AddonManagerProxy,
-                  manifest: Manifest,
-                  errorCallback:
-                  // eslint-disable-next-line no-unused-vars
-                  (packageName: string, error: string) => void): void {
-  const {
-    hubConnectionString,
-    accessToken,
-  } = manifest.moziot.config;
+export = function (
+  addonManager: AddonManagerProxy,
+  manifest: Manifest,
+  errorCallback: // eslint-disable-next-line no-unused-vars
+  (packageName: string, error: string) => void
+): void {
+  const { hubConnectionString, accessToken } = manifest.moziot.config;
 
   if (!hubConnectionString) {
     errorCallback(manifest.name, 'No hub connection string configured');

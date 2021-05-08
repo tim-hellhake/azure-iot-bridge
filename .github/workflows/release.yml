@@ -78,10 +78,15 @@ jobs:
       uses: actions/setup-node@v1
       with:
         node-version: ${{ matrix.version }}
-    - name: npm lint
+    - name: Install
       run: |
         npm ci
-        npm run lint
+    - name: Check formatting
+      run: |
+        npx prettier -c 'src/*.ts'
+    - name: Lint
+      run: |
+      npm run lint
     - name: Build adapter
       run: |
         ./build.sh "${{ matrix.platform }}" "${{ matrix.language }}" "${{ matrix.version }}"

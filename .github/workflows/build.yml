@@ -15,17 +15,20 @@ jobs:
         node-version: [10.x, 12.x, 14.x]
 
     steps:
-    - uses: actions/checkout@v1
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v1
-      with:
-        node-version: ${{ matrix.node-version }}
-    - name: npm install
-      run: |
-        npm ci
-    - name: npm lint
-      run: |
-        npm run lint
-    - name: npm build
-      run: |
-        npm run build
+      - uses: actions/checkout@v1
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Install
+        run: |
+          npm ci
+      - name: Check formatting
+        run: |
+          npx prettier -c 'src/*.ts'
+      - name: Lint
+        run: |
+          npm run lint
+      - name: Build
+        run: |
+          npm run build
