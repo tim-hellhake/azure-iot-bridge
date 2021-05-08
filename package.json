@@ -1,7 +1,7 @@
 {
   "name": "azure-iot-bridge",
   "display_name": "Azure IoT bridge",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Connect your devices to an Azure IoT hub",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
