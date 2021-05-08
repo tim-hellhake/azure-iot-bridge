@@ -86,7 +86,7 @@ jobs:
         npx prettier -c 'src/*.ts'
     - name: Lint
       run: |
-      npm run lint
+        npm run lint
     - name: Build adapter
       run: |
         ./build.sh "${{ matrix.platform }}" "${{ matrix.language }}" "${{ matrix.version }}"
