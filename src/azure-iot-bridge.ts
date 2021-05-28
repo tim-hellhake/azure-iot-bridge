@@ -10,25 +10,14 @@ import { Registry, ConnectionString } from 'azure-iothub';
 import { Client, Twin, Message } from 'azure-iot-device';
 import { Amqp } from 'azure-iot-device-amqp';
 import { v4 } from 'uuid';
+import { Config } from './config';
 
 export interface Manifest {
   name: string;
   display_name: string;
   moziot: {
-    config: Record<string, string>;
+    config: Config;
   };
-}
-
-interface Config {
-  devices: Devices;
-}
-
-interface Devices {
-  [key: string]: DeviceConfig;
-}
-
-interface DeviceConfig {
-  primaryKey: string;
 }
 
 function sanitizeNames(s: string) {

@@ -19,7 +19,12 @@
   "options": {
     "schema": {
       "type": "object",
-      "required": [],
+      "required": [
+        "accessToken",
+        "hubConnectionString",
+        "updateTwin",
+        "minCheckDeviceStatusInterval"
+      ],
       "default": {
         "updateTwin": false,
         "minCheckDeviceStatusInterval": 600
@@ -40,6 +45,20 @@
         "minCheckDeviceStatusInterval": {
           "type": "integer",
           "title": "The minimum number of seconds between two checks wether a device is activated or not"
+        },
+        "devices": {
+          "type": "object",
+          "patternProperties": {
+            ".*": {
+              "type": "object",
+              "required": ["primaryKey"],
+              "properties": {
+                "primaryKey": {
+                  "type": "string"
+                }
+              }
+            }
+          }
         }
       }
     }
