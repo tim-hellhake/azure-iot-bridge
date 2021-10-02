@@ -32,7 +32,7 @@ class IotHub extends Device {
 
   private registry: Registry;
 
-  private hubHostName: string;
+  private hubHostName?: string;
 
   private twinByDeviceId: Record<string, Twin> = {};
 
@@ -40,13 +40,18 @@ class IotHub extends Device {
 
   private batchByDeviceId: Record<string, Record<string, unknown>> = {};
 
-  constructor(adapter: Adapter, private manifest: Manifest) {
-    super(adapter, manifest.name);
+  constructor(adapter: Adapter) {
+    super(adapter, 'azure-iot-bridge');
     this['@context'] = 'https://iot.mozilla.org/schemas/';
-    this.setTitle(manifest.display_name);
-    this.database = new Database(manifest.name, '');
+    this.setTitle('Azure IoT Bridge');
+    this.database = new Database('azure-iot-bridge', '');
+    this.registry = {} as unknown as Registry;
+    this.start();
+  }
 
-    const { hubConnectionString } = this.manifest.moziot.config;
+  private async start() {
+    await this.database.open();
+    const { hubConnectionString } = (await this.database.loadConfig()) as Config;
 
     this.registry = Registry.fromConnectionString(hubConnectionString);
 
@@ -58,11 +63,12 @@ class IotHub extends Device {
 
     this.hubHostName = HostName;
 
-    this.connectToGateway();
+    await this.connectToGateway();
   }
 
   private async connectToGateway() {
-    const { accessToken, updateTwin, minCheckDeviceStatusInterval } = this.manifest.moziot.config;
+    const { accessToken, updateTwin, minCheckDeviceStatusInterval } =
+      (await this.database.loadConfig()) as Config;
 
     let deviceDisabled: Record<string, boolean> = await this.checkDeviceStatus();
     let lastDeviceCheck = new Date();
@@ -275,6 +281,6 @@ export class AzureIotBridge extends Adapter {
   constructor(addonManager: AddonManagerProxy, manifest: Manifest) {
     super(addonManager, AzureIotBridge.name, manifest.name);
     addonManager.addAdapter(this);
-    new IotHub(this, manifest);
+    new IotHub(this);
   }
 }
