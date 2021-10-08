@@ -4,13 +4,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.*
  */
 
-import { Database, Adapter, Device, AddonManagerProxy } from 'gateway-addon';
+import { Adapter, Device, AddonManagerProxy } from 'gateway-addon';
 import { Property, WebThingsClient } from 'webthings-client';
 import { Registry, ConnectionString } from 'azure-iothub';
 import { Client, Twin, Message } from 'azure-iot-device';
 import { Amqp } from 'azure-iot-device-amqp';
 import { v4 } from 'uuid';
-import { Config } from './config';
+import { Config, Device as ConfigDevice } from './config';
+import { loadConfig, saveConfig } from './config-database';
 
 export interface Manifest {
   name: string;
@@ -28,8 +29,6 @@ function sanitizeNames(s: string) {
 }
 
 class IotHub extends Device {
-  private database: Database;
-
   private registry: Registry;
 
   private hubHostName?: string;
@@ -44,14 +43,12 @@ class IotHub extends Device {
     super(adapter, 'azure-iot-bridge');
     this['@context'] = 'https://iot.mozilla.org/schemas/';
     this.setTitle('Azure IoT Bridge');
-    this.database = new Database('azure-iot-bridge', '');
     this.registry = {} as unknown as Registry;
     this.start();
   }
 
   private async start() {
-    await this.database.open();
-    const { hubConnectionString } = (await this.database.loadConfig()) as Config;
+    const { hubConnectionString } = await loadConfig();
 
     this.registry = Registry.fromConnectionString(hubConnectionString);
 
@@ -67,8 +64,7 @@ class IotHub extends Device {
   }
 
   private async connectToGateway() {
-    const { accessToken, updateTwin, minCheckDeviceStatusInterval } =
-      (await this.database.loadConfig()) as Config;
+    const { accessToken, updateTwin, minCheckDeviceStatusInterval } = await loadConfig();
 
     let deviceDisabled: Record<string, boolean> = await this.checkDeviceStatus();
     let lastDeviceCheck = new Date();
@@ -221,16 +217,12 @@ class IotHub extends Device {
     return accessKey;
   }
 
-  private async loadPrimaryKey(deviceId: string): Promise<string | null> {
+  private async loadPrimaryKey(deviceId: string): Promise<string | undefined> {
     console.log(`Loading primary key for ${deviceId}`);
-    await this.database.open();
-    const config = <Config>(<unknown>await this.database.loadConfig());
+    const config = await loadConfig();
+    const device = this.getDevice(deviceId, config.devices || []);
 
-    if (config.devices && config.devices[deviceId]) {
-      return config.devices[deviceId].primaryKey;
-    }
-
-    return null;
+    return device?.primaryKey;
   }
 
   private async createDeviceKey(deviceId: string): Promise<string> {
@@ -256,13 +248,29 @@ class IotHub extends Device {
 
   private async savePrimaryKey(deviceId: string, primaryKey: string) {
     console.log(`Saving primary key for ${deviceId}`);
-    await this.database.open();
-    const config = <Config>(<unknown>await this.database.loadConfig());
-    config.devices = config.devices || {};
-    config.devices[deviceId] = {
-      primaryKey,
-    };
-    await this.database.saveConfig(<Record<string, unknown>>(<unknown>config));
+    const config = await loadConfig();
+    const devices = config.devices || [];
+    const existingDevice = this.getDevice(deviceId, devices);
+
+    if (existingDevice) {
+      existingDevice.primaryKey = primaryKey;
+    } else {
+      devices.push({ id: deviceId, primaryKey });
+    }
+
+    config.devices = devices;
+
+    await saveConfig(config);
+  }
+
+  private getDevice(id: string, devices: ConfigDevice[]): ConfigDevice | null {
+    for (const device of devices) {
+      if (device.id === id) {
+        return device;
+      }
+    }
+
+    return null;
   }
 
   private async createDeviceClient(deviceId: string, accessKey: string): Promise<Client> {

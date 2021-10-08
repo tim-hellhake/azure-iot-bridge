@@ -47,17 +47,22 @@
           "title": "The minimum number of seconds between two checks wether a device is activated or not"
         },
         "devices": {
-          "type": "object",
-          "patternProperties": {
-            ".*": {
-              "type": "object",
-              "required": [
-                "primaryKey"
-              ],
-              "properties": {
-                "primaryKey": {
-                  "type": "string"
-                }
+          "type": "array",
+          "items": {
+            "type": "object",
+            "title": "Device",
+            "required": [
+              "id",
+              "primaryKey"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "readOnly": true
+              },
+              "primaryKey": {
+                "type": "string",
+                "readOnly": true
               }
             }
           }
