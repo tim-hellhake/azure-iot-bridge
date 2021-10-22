@@ -31,8 +31,6 @@ function sanitizeNames(s: string) {
 class IotHub extends Device {
   private registry: Registry;
 
-  private hubHostName?: string;
-
   private twinByDeviceId: Record<string, Twin> = {};
 
   private deviceByDeviceId: Record<string, Client> = {};
@@ -58,12 +56,10 @@ class IotHub extends Device {
       throw `Invalid hub connection string, could not extract hostname`;
     }
 
-    this.hubHostName = HostName;
-
-    await this.connectToGateway();
+    await this.connectToGateway(HostName);
   }
 
-  private async connectToGateway() {
+  private async connectToGateway(hubHostName: string) {
     const { accessToken, updateTwin, minCheckDeviceStatusInterval } = await loadConfig();
 
     let deviceDisabled: Record<string, boolean> = await this.checkDeviceStatus();
@@ -105,7 +101,7 @@ class IotHub extends Device {
           this.batchByDeviceId[deviceId] = batch;
 
           try {
-            const device = await this.getOrCreateDevice(deviceId);
+            const device = await this.getOrCreateDevice(hubHostName, deviceId);
             const batchJson = JSON.stringify(batch);
 
             try {
@@ -184,20 +180,20 @@ class IotHub extends Device {
     return twin;
   }
 
-  private async getOrCreateDevice(deviceId: string): Promise<Client> {
+  private async getOrCreateDevice(hubHostName: string, deviceId: string): Promise<Client> {
     let device = this.deviceByDeviceId[deviceId];
 
     if (!device) {
       let accessKey = await this.getOrCreateDeviceKey(deviceId);
 
       try {
-        device = await this.createDeviceClient(deviceId, accessKey);
+        device = await this.createDeviceClient(hubHostName, deviceId, accessKey);
       } catch (error) {
         console.log(`Could not create device: ${error}`);
         console.log(`Attempting to recreate device for ${deviceId}`);
         accessKey = await this.createDeviceKey(deviceId);
         await this.savePrimaryKey(deviceId, accessKey);
-        device = await this.createDeviceClient(deviceId, accessKey);
+        device = await this.createDeviceClient(hubHostName, deviceId, accessKey);
       }
 
       this.deviceByDeviceId[deviceId] = device;
@@ -273,10 +269,14 @@ class IotHub extends Device {
     return null;
   }
 
-  private async createDeviceClient(deviceId: string, accessKey: string): Promise<Client> {
+  private async createDeviceClient(
+    hubHostName: string,
+    deviceId: string,
+    accessKey: string
+  ): Promise<Client> {
     console.log(`Creating device client for ${deviceId}`);
     // eslint-disable-next-line max-len
-    const deviceConnectionString = `HostName=${this.hubHostName};DeviceId=${deviceId};SharedAccessKey=${accessKey}`;
+    const deviceConnectionString = `HostName=${hubHostName};DeviceId=${deviceId};SharedAccessKey=${accessKey}`;
     const client = Client.fromConnectionString(deviceConnectionString, Amqp);
 
     await client.open();
