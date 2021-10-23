@@ -46,7 +46,8 @@ class IotHub extends Device {
   }
 
   private async start() {
-    const { hubConnectionString } = await loadConfig();
+    const config = await loadConfig();
+    const { hubConnectionString } = config;
 
     this.registry = Registry.fromConnectionString(hubConnectionString);
 
@@ -56,11 +57,11 @@ class IotHub extends Device {
       throw `Invalid hub connection string, could not extract hostname`;
     }
 
-    await this.connectToGateway(HostName);
+    await this.connectToGateway(HostName, config);
   }
 
-  private async connectToGateway(hubHostName: string) {
-    const { accessToken, updateTwin, minCheckDeviceStatusInterval } = await loadConfig();
+  private async connectToGateway(hubHostName: string, config: Config) {
+    const { accessToken, updateTwin, minCheckDeviceStatusInterval } = config;
 
     let deviceDisabled: Record<string, boolean> = await this.checkDeviceStatus();
     let lastDeviceCheck = new Date();
