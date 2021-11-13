@@ -26,6 +26,7 @@
     "SHA256SUMS",
     "lib/index.js",
     "lib/azure-iot-bridge.js",
+    "lib/config-database.ts",
     "manifest.json"
   ],
   "dependencies": {
