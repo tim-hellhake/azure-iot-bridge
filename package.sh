@@ -18,6 +18,8 @@ fi
 
 npm ci --production
 
+rm -rf node_modues/.bin
+
 shasum --algorithm 256 manifest.json package.json lib/*.js LICENSE README.md > SHA256SUMS
 
 find node_modules \( -type f -o -type l \) -exec shasum --algorithm 256 {} \; >> SHA256SUMS
