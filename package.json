@@ -32,7 +32,7 @@
   "dependencies": {
     "azure-iot-device": "^1.17.8",
     "azure-iot-device-amqp": "^1.13.8",
-    "azure-iothub": "^1.14.6",
+    "azure-iothub": "^1.16.1",
     "uuid": "^8.3.2",
     "websocket": "^1.0.34",
     "webthings-client": "4.1.0"
